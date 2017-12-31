@@ -46,7 +46,7 @@ def main():
     sess = tf.Session()
 
     # load MNIST data
-    mnist = read_data_sets(args.data_dir, reshape=False, validation_size=0)
+    mnist = read_data_sets(args.data_dir, reshape=False, validation_size=59000)
     print("Input MNIST image shape: " + str(mnist.train.images.shape))
 
     # resize MNIST images to 32x32
@@ -78,7 +78,7 @@ def main():
     # compute saak coefficients for testing images
     if args.restore_coef_from is None:
         print("Compute saak coefficients")
-        out = model.inference(input_data)
+        out = model.inference(input_data, layer=0)
         test_coef = sess.run(out, feed_dict={input_data: test_images})
         train_coef = sess.run(out, feed_dict={input_data: train_images})
         # save saak coefficients
@@ -95,7 +95,7 @@ def main():
     train_coef = np.reshape(train_coef, [train_coef.shape[0], -1])
     test_coef = np.reshape(test_coef, [test_coef.shape[0], -1])
     print("Saak feature dimension: " + str(train_coef.shape[1]))
-    return 
+
     print("\nDo classification using SVM")
     accuracy = classify_svm(train_coef, mnist.train.labels, test_coef, mnist.test.labels)
     print("Accuracy: %.3f" % accuracy)

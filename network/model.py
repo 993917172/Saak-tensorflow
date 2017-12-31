@@ -22,16 +22,20 @@ class SaakModel(object):
                 w = tf.constant(kernel, name='w')
         return w
 
-    def inference(self, data):
+    def inference(self, data, layer=None):
         """
         @ data: a placeholder for image batch
         @       [batch_size, height, width, channel]
         """
         if self.anchors is None:
             raise Exception('No initialization for Saak model!')
+        if layer is None:
+            layer = len(self.anchors)
         out = data
         for i, kernel in enumerate(self.anchors):
             w = self._create_kernel(kernel, 'stage%d' % (i + 1, ))
             out = tf.nn.conv2d(out, w, strides=[1, 2, 2, 1], padding='SAME')
             out = tf.nn.relu(out)
+            if i == layer:
+                break
         return out

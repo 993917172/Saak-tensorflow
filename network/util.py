@@ -103,7 +103,7 @@ def classify_svm(train_feature, train_label, test_feature, test_label):
     assert test_feature.shape[0] == test_label.shape[0]
     svc = SVC()
     svc.fit(train_feature, train_label)
-    accucacy = svc.score(test_feature, test_label)
+    accuracy = svc.score(test_feature, test_label)
     return accuracy
 
     
