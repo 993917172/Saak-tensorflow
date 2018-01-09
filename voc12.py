@@ -68,7 +68,7 @@ def main():
         print("Restoration succeed!\n")
 
     # extract context adaptive saak anchors
-    get_content_adaptive_saak(images)
+    get_content_adaptive_saak(images, vis='scatter_ca')
 
     return
 

@@ -110,8 +110,8 @@ def get_saak_anchors(images, _sess=None, ks=2, max_layer=5, vis=None):
         if vis is not None:
             ind = range(len(batches))
             np.random.shuffle(ind)
-            ind = ind[:200]
-            projection = np.matmul([batches[k,:] for k in ind], np.reshape(anchor[:,:,:,:2], [12,2]))
+            ind = ind[:1000]
+            projection = np.matmul([batches[k,:] for k in ind], np.reshape(anchor[:,:,:,:2], [-1,2]))
             # np.save('p.npy', projection)
             # np.save('p2.npy', anchor)
             # np.save('p3.npy', batches)
@@ -210,14 +210,43 @@ def display2_kmeans(images, kmeans, kmeans2, m=20, suffix='_ca'):
     cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all_resized_context.png' % (suffix, nc2, ), img2)
     
 
-def get_content_adaptive_saak(images, _sess=None, ks=2, n_clusters=10):
+def get_content_adaptive_saak(images, _sess=None, ks=2, n_clusters=5, vis=None):
     n, h, w, ch = images.shape
+
     batches = _extract_batches(images, ks)
+
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(batches)
+
     # print(kmeans.labels_)
+
     print(kmeans.cluster_centers_)
-    display_kmeans(batches, kmeans)
+    # display_kmeans(batches, kmeans)
+
+    if vis is not None:
+        cluster = [[] for i in range(n_clusters)]
+        for k, b in enumerate(batches):
+            cluster[kmeans.labels_[k]].append(b)
+        for k in range(n_clusters):
+            cluster[k] = np.concatenate(np.expand_dims(cluster[k], axis=0), axis=0)
+            print(cluster[k].shape)
+            ch = 3
+            anchor, _ = _fit_anchor_vectors(cluster[k], ks, ch, augment=False)
+            anchor = np.array(anchor)
+            print('anchor shape: ' + str(anchor.shape))
+            ind = range(len(cluster[k]))
+            np.random.shuffle(ind)
+            ind = ind[:200]
+            t_batches = [cluster[k][l,:] for l in ind]
+            # t_batches = np.concatenate(t_batches, axis=0)
+            anchor = np.reshape(anchor[:,:,:,:2], [-1,2])
+            proj = np.matmul(t_batches, anchor)
+            plt.figure()
+            plt.scatter(proj[:,0], proj[:,1])
+            plt.savefig('images/%s_%d.png' % (vis, k))
+
+
+
     # images_ds = [cv2.resize(img, None, fx=.5, fy=.5) for img in images]
     # images_ds = np.array(images_ds)
     # batches_ds = _extract_batches(images_ds, ks)
