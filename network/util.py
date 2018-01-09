@@ -1,10 +1,18 @@
 from __future__ import print_function
 
+from itertools import product
+
 import numpy as np
 import tensorflow as tf
+import cv2
+
+import scipy.misc
+
+import cPickle
 
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
+from sklearn.cluster import KMeans
 
 def _extract_batches(images, ks):
     (num_img, height, width, channel) = images.shape
@@ -67,17 +75,22 @@ def conv_and_relu(images, anchors, sess, ks):
     return result
 
 
-def get_saak_anchors(images, _sess=None, ks=2):
+def get_saak_anchors(images, _sess=None, ks=2, max_layer=5):
     if _sess is None:
         sess = tf.Session()
     else:
         sess = _sess
+
+    if images.dtype == 'uint8':
+        images = images / 255
+        images = images.astype(np.float32)
+
     anchors = []
     channel_in = images.shape[3]
 
     rf_size = []
     n = min(images.shape[1], images.shape[2])
-    while n >= ks:
+    while n >= ks and len(rf_size) < max_layer:
         n = n // ks
         rf_size.append(n)
 
@@ -97,6 +110,107 @@ def get_saak_anchors(images, _sess=None, ks=2):
 
     return anchors
 
+def display_kmeans(batches, kmeans, m=20, suffix=''):
+    n = batches.shape[0]
+    n_clusters = kmeans.n_clusters
+    res = []
+    for i in range(n_clusters):
+        imgs = []
+        while len(imgs) < m:
+            index = np.random.randint(n)
+            if kmeans.labels_[index] == i:
+                # img_index = index % 256
+                # patch_x = index / 256 / 16
+                # patch_y = index / 256 % 16
+                imgs.append(cv2.cvtColor(
+                    np.reshape(batches[index,:],[2,2,3]),
+                    cv2.COLOR_LAB2BGR
+                    ))
+        new_img = np.concatenate(imgs, axis=1)
+        res.append(new_img)
+        cv2.imwrite('images/voc_kmeans%s_lab_nc%d_%d.png' % (suffix, n_clusters, i), new_img)
+    new_img = np.concatenate(res, axis=0)
+    cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all.png' % (suffix, n_clusters, ), new_img)
+    img2 = cv2.imread('images/voc_kmeans%s_lab_nc%d_all.png' % (suffix, n_clusters, ))
+    img2 = cv2.resize(img2, None, fx=10, fy=10, interpolation=cv2.INTER_NEAREST)
+    cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all_resized.png' % (suffix, n_clusters, ), img2)
+
+    return res
+
+def display2_kmeans(images, kmeans, kmeans2, m=20, suffix='_ca'):
+    n, h, w, ch = images.shape
+    nc = kmeans.n_clusters
+    nc2 = kmeans2.n_clusters
+    res = []
+    res2 = []
+    for (i,j) in product(range(nc),range(nc2)):
+        imgs = []
+        imgs2 = []
+        while len(imgs) < m:
+            index = np.random.randint(n)
+            x = np.random.randint(h / 2) * 2
+            y = np.random.randint(w / 2) * 2
+            x2 = x / 4 * 4
+            y2 = y / 4 * 4
+            img1 = images[index,x:x+2,y:y+2,:]
+            img2_o = images[index,x2:x2+4,y2:y2+4,:]
+            img2 = cv2.resize(images[index,x2:x2+4,y2:y2+4,:],(2,2))
+            img1 = np.reshape(img1, [1,12])
+            img2 = np.reshape(img2, [1,12])
+            lb1 = kmeans.predict(img1)
+            lb2 = kmeans.predict(img2)
+            if lb1 == i and lb2 == j:
+                # img_index = index % 256
+                # patch_x = index / 256 / 16
+                # patch_y = index / 256 % 16
+                imgs.append(cv2.cvtColor(
+                    np.reshape(img1,[2,2,3]),
+                    cv2.COLOR_LAB2BGR
+                    ))
+                imgs2.append(cv2.cvtColor(
+                    img2_o,
+                    cv2.COLOR_LAB2BGR
+                    ))
+        new_img = np.concatenate(imgs, axis=1)
+        new_img_2 = np.concatenate(imgs2, axis=1)
+        res.append(new_img)
+        res2.append(new_img_2)
+        cv2.imwrite('images/voc_kmeans%s_lab_nc%d_%d.png' % (suffix, nc, i), new_img)
+        cv2.imwrite('images/voc_kmeans%s_lab_nc%d_%d_context.png' % (suffix, nc, i), new_img_2)
+
+    new_img = np.concatenate(res, axis=0)
+    new_img_2 = np.concatenate(res2, axis=0)
+
+    cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all.png' % (suffix, nc, ), new_img)
+    img2 = cv2.imread('images/voc_kmeans%s_lab_nc%d_all.png' % (suffix, nc, ))
+    img2 = cv2.resize(img2, None, fx=10, fy=10, interpolation=cv2.INTER_NEAREST)
+    cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all_resized.png' % (suffix, nc, ), img2)
+
+    cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all_context.png' % (suffix, nc2, ), new_img_2)
+    img2 = cv2.imread('images/voc_kmeans%s_lab_nc%d_all_context.png' % (suffix, nc2, ))
+    img2 = cv2.resize(img2, None, fx=10, fy=10, interpolation=cv2.INTER_NEAREST)
+    cv2.imwrite('images/voc_kmeans%s_lab_nc%d_all_resized_context.png' % (suffix, nc2, ), img2)
+    
+
+def get_content_adaptive_saak(images, _sess=None, ks=2, n_clusters=10):
+    n, h, w, ch = images.shape
+    batches = _extract_batches(images, ks)
+    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans.fit(batches)
+    # print(kmeans.labels_)
+    print(kmeans.cluster_centers_)
+    display_kmeans(batches, kmeans)
+    images_ds = [cv2.resize(img, None, fx=.5, fy=.5) for img in images]
+    images_ds = np.array(images_ds)
+    batches_ds = _extract_batches(images_ds, ks)
+    kmeans2 = KMeans(n_clusters=n_clusters)
+    kmeans2.fit(batches_ds)
+    display_kmeans(batches_ds, kmeans2, suffix='_ds')
+
+    display2_kmeans(images, kmeans, kmeans2)
+
+    
+
 def classify_svm(train_feature, train_label, test_feature, test_label):
     assert train_feature.shape[1] == test_feature.shape[1]
     assert train_feature.shape[0] == train_label.shape[0]
@@ -105,6 +219,5 @@ def classify_svm(train_feature, train_label, test_feature, test_label):
     svc.fit(train_feature, train_label)
     accuracy = svc.score(test_feature, test_label)
     return accuracy
-
     
 
