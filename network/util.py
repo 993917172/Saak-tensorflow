@@ -4,6 +4,7 @@ from itertools import product
 
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 import cv2
 
 import scipy.misc
@@ -75,15 +76,15 @@ def conv_and_relu(images, anchors, sess, ks):
     return result
 
 
-def get_saak_anchors(images, _sess=None, ks=2, max_layer=5):
+def get_saak_anchors(images, _sess=None, ks=2, max_layer=5, vis=None):
     if _sess is None:
         sess = tf.Session()
     else:
         sess = _sess
 
     if images.dtype == 'uint8':
-        images = images / 255
         images = images.astype(np.float32)
+        images = images / 255.
 
     anchors = []
     channel_in = images.shape[3]
@@ -96,6 +97,8 @@ def get_saak_anchors(images, _sess=None, ks=2, max_layer=5):
 
     print("Start to extract Saak anchors:\n")
 
+    # np.save('p4.npy', images)
+
     for i, _ in enumerate(rf_size):
         print("Stage %d start:" % (i + 1, ))
         batches = _extract_batches(images, ks)
@@ -103,6 +106,21 @@ def get_saak_anchors(images, _sess=None, ks=2, max_layer=5):
         anchors.append(anchor)
         images = conv_and_relu(images, anchor, sess, ks)
         channel_in = channel_out
+
+        if vis is not None:
+            ind = range(len(batches))
+            np.random.shuffle(ind)
+            ind = ind[:200]
+            projection = np.matmul([batches[k,:] for k in ind], np.reshape(anchor[:,:,:,:2], [12,2]))
+            # np.save('p.npy', projection)
+            # np.save('p2.npy', anchor)
+            # np.save('p3.npy', batches)
+            print("projection shape " + str(projection.shape))
+            # plt.plot(projection[:,0], projection[:,1], 'o')
+            plt.scatter(projection[:,0], projection[:,1])
+            # plt.show()
+            plt.savefig('images/' + vis)
+
         print("Stage %d end\n" % (i + 1, )) 
 
     if _sess is None:
@@ -200,14 +218,14 @@ def get_content_adaptive_saak(images, _sess=None, ks=2, n_clusters=10):
     # print(kmeans.labels_)
     print(kmeans.cluster_centers_)
     display_kmeans(batches, kmeans)
-    images_ds = [cv2.resize(img, None, fx=.5, fy=.5) for img in images]
-    images_ds = np.array(images_ds)
-    batches_ds = _extract_batches(images_ds, ks)
-    kmeans2 = KMeans(n_clusters=n_clusters)
-    kmeans2.fit(batches_ds)
-    display_kmeans(batches_ds, kmeans2, suffix='_ds')
+    # images_ds = [cv2.resize(img, None, fx=.5, fy=.5) for img in images]
+    # images_ds = np.array(images_ds)
+    # batches_ds = _extract_batches(images_ds, ks)
+    # kmeans2 = KMeans(n_clusters=n_clusters)
+    # kmeans2.fit(batches_ds)
+    # display_kmeans(batches_ds, kmeans2, suffix='_ds')
 
-    display2_kmeans(images, kmeans, kmeans2)
+    # display2_kmeans(images, kmeans, kmeans2)
 
     
 

@@ -51,14 +51,15 @@ def main():
     # load MNIST data
     # images = voc12.load_images(args.img_list, args.data_dir, (32,32))
     # print("Input VOC12 image shape: " + str(images.shape))
-    # np.save('images_voc12_train_32x32.npy', images)
-    images = np.load('images_voc12_train_32x32.npy')
+    # np.save('images_voc12_train_32x32_lab.npy', images)
+    images = np.load('images_voc12_train_32x32_lab.npy')
 
-    train_images = images
+    train_images = np.array(images, dtype=np.float32) / 255.
+    # print(train_images)
 
     # extract saak anchors
     if args.restore_model_from is None:
-        anchors = get_saak_anchors(train_images, sess, max_layer=1)
+        anchors = get_saak_anchors(train_images, sess, max_layer=1, vis='scatter_all.png')
         np.save(args.model_dir, {'anchors': anchors})
     else:
         print("\nRestore from existing model:")
@@ -67,7 +68,7 @@ def main():
         print("Restoration succeed!\n")
 
     # extract context adaptive saak anchors
-    # anchors = get_content_adaptive_saak(images)
+    get_content_adaptive_saak(images)
 
     return
 
